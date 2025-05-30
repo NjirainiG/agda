@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced GIS Data Analyzer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2ecc71;
+            --accent-color: #e74c3c;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+        }
+        
+        .dropzone {
+            border: 2px dashed var(--primary-color);
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.3s;
+            background-color: rgba(52, 152, 219, 0.05);
+        }
+        
+        .dropzone:hover {
+            background-color: rgba(52, 152, 219, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        #preview-map {
+            height: 500px;
+            width: 100%;
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .file-info {
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        
+        #uploadSpinner, #analyzeSpinner {
+            display: none;
+        }
+        
+        .analysis-container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .visualization {
+            margin: 20px 0;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 15px;
+            background-color: #fefefe;
+        }
+        
+        .visualization img {
+            max-width: 100%;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .stat-value {
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+        
+        .analysis-section {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .analysis-section h4 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid var(--primary-color);
+        }
+        
+        .suggested-actions .list-group-item {
+            transition: all 0.2s;
+        }
+        
+        .suggested-actions .list-group-item:hover {
+            background-color: rgba(52, 152, 219, 0.1);
+            transform: translateX(5px);
+        }
+        
+        .tab-content {
+            padding: 20px;
+            background-color: white;
+            border-radius: 0 0 8px 8px;
+            border: 1px solid #dee2e6;
+            border-top: none;
+        }
+        
+        .nav-tabs .nav-link.active {
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .data-quality-badge {
+            font-size: 0.8rem;
+            margin-right: 5px;
+        }
+        
+        .map-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            display: flex;
+            gap: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <div class="text-center mb-5">
+            <h1 class="display-4">Advanced GIS Data Analyzer</h1>
+            <p class="lead">Upload, visualize, and analyze geospatial data with AI-powered insights</p>
+        </div>
+        
+        <!-- File Upload Section -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-upload me-2"></i>Upload GIS Data</h5>
+            </div>
+            <div class="card-body">
+                <form id="uploadForm">
+                    <div id="dropzone" class="dropzone">
+                        <p class="fs-5"><i class="fas fa-cloud-upload-alt fa-2x mb-3"></i></p>
+                        <p class="fs-5">Drag & drop your GIS files here or click to browse</p>
+                        <p class="text-muted">Supports Shapefiles (.shp, .dbf, .shx), GeoJSON, and KML</p>
+                        <input type="file" id="fileInput" class="d-none" multiple>
+                        <button type="button" class="btn btn-lg btn-primary mt-3" onclick="document.getElementById('fileInput').click()">
+                            <i class="fas fa-folder-open me-2"></i>Select Files
+                        </button>
+                    </div>
+                    <div id="fileInfo" class="file-info mt-3"></div>
+                    <button type="submit" class="btn btn-success btn-lg mt-3" id="uploadBtn">
+                        <span id="uploadText"><i class="fas fa-upload me-2"></i>Upload Files</span>
+                        <span id="uploadSpinner" class="spinner-border spinner-border-sm"></span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results" class="mt-4" style="display: none;">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5><i class="fas fa-info-circle me-2"></i>Dataset Overview</h5>
+                </div>
+                <div class="card-body">
+                    <div id="uploadMessage" class="alert alert-dismissible fade show" role="alert">
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    
+                    <ul class="nav nav-tabs" id="resultsTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="map-tab" data-bs-toggle="tab" data-bs-target="#map-tab-pane" type="button" role="tab">Map Preview</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="metadata-tab" data-bs-toggle="tab" data-bs-target="#metadata-tab-pane" type="button" role="tab">Metadata</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats-tab-pane" type="button" role="tab">Statistics</button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content" id="resultsTabContent">
+                        <div class="tab-pane fade show active" id="map-tab-pane" role="tabpanel" tabindex="0">
+                            <div id="preview-map">
+                                <div class="map-controls">
+                                    <button class="btn btn-sm btn-primary" onclick="refreshMap()">
+                                        <i class="fas fa-sync-alt"></i> Refresh Map
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mt-3 text-muted">
+                                <small>Map shows the geographic extent of your data. Use the analysis section below to create thematic maps.</small>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="metadata-tab-pane" role="tabpanel" tabindex="0">
+                            <pre id="metadata" class="p-3 bg-light rounded"></pre>
+                        </div>
+                        <div class="tab-pane fade" id="stats-tab-pane" role="tabpanel" tabindex="0">
+                            <div id="statisticsContent"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Analysis Section -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-robot me-2"></i>AI-Powered Analysis</h5>
+            </div>
+            <div class="card-body">
+                <div id="aiAnalysisContainer" style="display: none;">
+                    <div class="mb-4">
+                        <label for="aiQuestion" class="form-label fs-5">Ask about your data:</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control form-control-lg" id="aiQuestion" 
+                                   placeholder="e.g., What patterns can you find in this data?">
+                            <button id="analyzeBtn" class="btn btn-primary btn-lg">
+                                <span id="analyzeText">Analyze</span>
+                                <span id="analyzeSpinner" class="spinner-border spinner-border-sm d-none"></span>
+                            </button>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">Try: "Show me a map of population", "What's the distribution of income?", or "Find spatial clusters"</small>
+                        </div>
+                    </div>
+                    
+                    <div id="analysisResult" class="analysis-container" style="display: none;"></div>
+                    
+                    <div class="mt-4">
+                        <h5>Quick Analysis Templates</h5>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-outline-primary template-btn" data-template="Show me a map of">Map Visualization</button>
+                            <button class="btn btn-outline-primary template-btn" data-template="What's the distribution of">Attribute Distribution</button>
+                            <button class="btn btn-outline-primary template-btn" data-template="Are there any spatial clusters in">Spatial Clusters</button>
+                            <button class="btn btn-outline-primary template-btn" data-template="What's the relationship between">Attribute Correlation</button>
+                            <button class="btn btn-outline-primary template-btn" data-template="Give me a comprehensive summary of">Data Summary</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="aiPromptUpload" class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>Please upload a GIS file first to enable analysis features
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Libraries -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        // Global variables
+        let map;
+        let currentFile = null;
+        let currentMetadata = null;
+        let currentLayer = null;
+        
+        // DOM elements
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadForm = document.getElementById('uploadForm');
+        const results = document.getElementById('results');
+        const uploadMessage = document.getElementById('uploadMessage');
+        const metadataDiv = document.getElementById('metadata');
+        const statisticsContent = document.getElementById('statisticsContent');
+        const uploadText = document.getElementById('uploadText');
+        const uploadSpinner = document.getElementById('uploadSpinner');
+        const aiAnalysisContainer = document.getElementById('aiAnalysisContainer');
+        const aiPromptUpload = document.getElementById('aiPromptUpload');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const aiQuestion = document.getElementById('aiQuestion');
+        const analysisResult = document.getElementById('analysisResult');
+        const analyzeText = document.getElementById('analyzeText');
+        const analyzeSpinner = document.getElementById('analyzeSpinner');
+        const templateButtons = document.querySelectorAll('.template-btn');
+
+        // Initialize event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            fileInput.addEventListener('change', handleFileSelect);
+            uploadForm.addEventListener('submit', handleUploadSubmit);
+            analyzeBtn.addEventListener('click', handleAnalysisRequest);
+            aiQuestion.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    handleAnalysisRequest();
+                }
+            });
+
+            // Add template button handlers
+            templateButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    aiQuestion.value = this.dataset.template;
+                    if (aiQuestion.value.endsWith(' of') || aiQuestion.value.endsWith(' between')) {
+                        aiQuestion.focus();
+                        aiQuestion.selectionStart = aiQuestion.value.length;
+                    } else {
+                        handleAnalysisRequest();
+                    }
+                });
+            });
+        });
+
+        // Handle file selection
+        function handleFileSelect() {
+            const files = Array.from(this.files);
+            fileInfo.innerHTML = '';
+            
+            if (files.length === 0) {
+                uploadBtn.disabled = true;
+                return;
+            }
+
+            // Validate file extensions
+            const validFiles = files.filter(file => {
+                const ext = file.name.split('.').pop().toLowerCase();
+                return ['shp', 'dbf', 'shx', 'prj', 'geojson', 'kml', 'json'].includes(ext);
+            });
+
+            // Check for complete shapefile
+            const extensions = validFiles.map(f => f.name.split('.').pop().toLowerCase());
+            if (extensions.includes('shp')) {
+                const required = ['shp', 'dbf', 'shx'];
+                const missing = required.filter(ext => !extensions.includes(ext));
+                if (missing.length > 0) {
+                    fileInfo.innerHTML = `
+                        <div class="alert alert-warning">
+                            <strong>Missing Shapefile components:</strong> ${missing.join(', ')}
+                            <br>Please upload all required files (.shp, .dbf, .shx)
+                        </div>
+                    `;
+                    uploadBtn.disabled = true;
+                    return;
+                }
+            }
+
+            // Display selected files
+            const fileList = validFiles.map(f => `
+                <div class="d-flex justify-content-between border-bottom py-2">
+                    <div>
+                        <i class="far fa-file me-2"></i>
+                        <span>${f.name}</span>
+                    </div>
+                    <span class="text-muted">${(f.size/1024).toFixed(2)} KB</span>
+                </div>
+            `).join('');
+            
+            fileInfo.innerHTML = `
+                <div>
+                    <strong>Selected files (${validFiles.length}):</strong>
+                    <div class="mt-2">${fileList}</div>
+                </div>
+            `;
+            
+            uploadBtn.disabled = false;
+        }
+
+        // Handle form submission
+        async function handleUploadSubmit(e) {
+            e.preventDefault();
+            const files = fileInput.files;
+            if (!files || files.length === 0) return;
+
+            // Show loading state
+            uploadText.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Uploading...';
+            uploadBtn.disabled = true;
+            results.style.display = 'none';
+
+            try {
+                const formData = new FormData();
+                Array.from(files).forEach(file => formData.append('file', file));
+
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                // First check if response is OK
+                if (!response.ok) {
+                    const errorData = await parseJsonResponse(response);
+                    throw new Error(errorData.message || `Server error: ${response.status}`);
+                }
+
+                const data = await parseJsonResponse(response);
+                
+                if (data.status === 'error') {
+                    throw new Error(data.message);
+                }
+
+                // Success case
+                showAlert('success', data.message);
+                
+                // Store file info
+                currentFile = {
+                    path: data.file_path,
+                    type: data.file_type
+                };
+                currentMetadata = data.metadata || {};
+                
+                // Display metadata
+                metadataDiv.textContent = JSON.stringify(currentMetadata, null, 2);
+                
+                // Show statistics
+                displayStatistics(currentMetadata);
+                
+                // Show map preview if valid bounds exist
+                if (currentMetadata.bounds && currentMetadata.bounds.length === 4 && 
+                    !currentMetadata.bounds.every(coord => coord === 0)) {
+                    showMapPreview(currentMetadata.bounds);
+                } else {
+                    showAlert('info', 'No valid geographic bounds found for map preview');
+                }
+                
+                // Enable AI analysis
+                aiAnalysisContainer.style.display = 'block';
+                aiPromptUpload.style.display = 'none';
+                results.style.display = 'block';
+                
+            } catch (error) {
+                showAlert('danger', error.message);
+                results.style.display = 'block';
+                console.error('Upload error:', error);
+            } finally {
+                uploadText.innerHTML = '<i class="fas fa-upload me-2"></i> Upload Files';
+                uploadBtn.disabled = false;
+            }
+        }
+
+        // Handle analysis requests
+        async function handleAnalysisRequest() {
+            const question = aiQuestion.value.trim();
+            if (!question || !currentFile) return;
+            
+            analyzeText.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Analyzing...';
+            analyzeSpinner.classList.remove('d-none');
+            analyzeBtn.disabled = true;
+            analysisResult.style.display = 'none';
+            
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: question,
+                        file_path: currentFile.path,
+                        file_type: currentFile.type
+                    })
+                });
+                
+                const data = await parseJsonResponse(response);
+                
+                if (!response.ok) {
+                    throw new Error(data.message || 'Analysis failed');
+                }
+                
+                // Display results
+                analysisResult.innerHTML = formatAnalysisResult(data);
+                analysisResult.style.display = 'block';
+                
+                // If visualization was returned, update the map tab
+                if (data.result && data.result.includes('![')) {
+                    updateVisualizations(data.result);
+                }
+                
+            } catch (error) {
+                analysisResult.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Error: ${error.message}
+                    </div>
+                `;
+                analysisResult.style.display = 'block';
+            } finally {
+                analyzeText.textContent = "Analyze";
+                analyzeSpinner.classList.add('d-none');
+                analyzeBtn.disabled = false;
+            }
+        }
+
+        // Helper to safely parse JSON responses
+        async function parseJsonResponse(response) {
+            try {
+                return await response.json();
+            } catch (e) {
+                console.error('Failed to parse JSON:', e);
+                throw new Error('Invalid server response');
+            }
+        }
+
+        // Display statistics in the statistics tab
+        function displayStatistics(metadata) {
+            if (!metadata || !metadata.statistics) {
+                statisticsContent.innerHTML = '<div class="alert alert-info">No statistical data available</div>';
+                return;
+            }
+
+            let statsHTML = '<div class="row">';
+            
+            for (const [column, stats] of Object.entries(metadata.statistics)) {
+                statsHTML += `
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-light">
+                                <h5>${column}</h5>
+                                <span class="badge bg-secondary">${stats.type}</span>
+                            </div>
+                            <div class="card-body">
+                `;
+
+                if (stats.type === 'numeric') {
+                    statsHTML += `
+                        <div class="mb-3">
+                            <h6>Distribution</h6>
+                            <canvas id="chart-${column}" height="200"></canvas>
+                        </div>
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr><td>Count</td><td class="stat-value">${stats.count}</td></tr>
+                                <tr><td>Mean</td><td class="stat-value">${stats.mean?.toFixed(2) || 'N/A'}</td></tr>
+                                <tr><td>Std Dev</td><td class="stat-value">${stats.std?.toFixed(2) || 'N/A'}</td></tr>
+                                <tr><td>Min</td><td class="stat-value">${stats.min?.toFixed(2) || 'N/A'}</td></tr>
+                                <tr><td>25%</td><td class="stat-value">${stats['25%']?.toFixed(2) || 'N/A'}</td></tr>
+                                <tr><td>Median</td><td class="stat-value">${stats.median?.toFixed(2) || 'N/A'}</td></tr>
+                                <tr><td>75%</td><td class="stat-value">${stats['75%']?.toFixed(2) || 'N/A'}</td></tr>
+                                <tr><td>Max</td><td class="stat-value">${stats.max?.toFixed(2) || 'N/A'}</td></tr>
+                                <tr><td>Missing Values</td><td class="stat-value">${stats.missing_values}</td></tr>
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    statsHTML += `
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr><td>Count</td><td class="stat-value">${stats.count}</td></tr>
+                                <tr><td>Unique Values</td><td class="stat-value">${stats.unique_values}</td></tr>
+                                <tr><td>Missing Values</td><td class="stat-value">${stats.missing_values}</td></tr>
+                            </tbody>
+                        </table>
+                        <h6>Top Values</h6>
+                        <table class="table table-sm">
+                            <tbody>
+                    `;
+                    
+                    for (const [value, count] of Object.entries(stats.top_values)) {
+                        statsHTML += `<tr><td>${value}</td><td class="stat-value">${count}</td></tr>`;
+                    }
+                    
+                    statsHTML += `</tbody></table>`;
+                }
+                
+                statsHTML += `</div></div></div>`;
+            }
+            
+            statsHTML += '</div>';
+            statisticsContent.innerHTML = statsHTML;
+            
+            // Render charts for numeric columns
+            if (metadata.statistics) {
+                for (const [column, stats] of Object.entries(metadata.statistics)) {
+                    if (stats.type === 'numeric') {
+                        renderDistributionChart(column, stats);
+                    }
+                }
+            }
+        }
+
+        // Render distribution chart for numeric columns
+        function renderDistributionChart(column, stats) {
+            const ctx = document.getElementById(`chart-${column}`).getContext('2d');
+            
+            // Simulate distribution data (in a real app, this would come from the backend)
+            const mean = stats.mean || 0;
+            const std = stats.std || 1;
+            const min = stats.min || mean - 3*std;
+            const max = stats.max || mean + 3*std;
+            
+            // Generate normal distribution data
+            const labels = [];
+            const data = [];
+            const steps = 20;
+            const range = max - min;
+            
+            for (let i = 0; i <= steps; i++) {
+                const value = min + (i * range / steps);
+                labels.push(value.toFixed(2));
+                data.push(Math.exp(-0.5 * Math.pow((value - mean)/std, 2)));
+            }
+            
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Distribution',
+                        data: data,
+                        backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${column}: ${context.label}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            display: false
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: column
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Display map preview
+        function showMapPreview(bounds) {
+            // Initialize map container if not exists
+            const mapContainer = document.getElementById('preview-map');
+            if (!mapContainer) return;
+            
+            // Clear previous map if exists
+            if (map) {
+                map.remove();
+                map = null;
+            }
+            
+            // Convert bounds to Leaflet format: [[miny, minx], [maxy, maxx]]
+            const leafletBounds = [
+                [bounds[1], bounds[0]],
+                [bounds[3], bounds[2]]
+            ];
+            
+            // Initialize map
+            map = L.map('preview-map').fitBounds(leafletBounds);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+            
+            // Remove previous layer if exists
+            if (currentLayer) {
+                map.removeLayer(currentLayer);
+                currentLayer = null;
+            }
+            
+            // Add rectangle to show bounds
+            currentLayer = L.rectangle(leafletBounds, {
+                color: '#ff7800',
+                weight: 1,
+                fillOpacity: 0.2
+            }).addTo(map);
+        }
+
+        // Refresh map function
+        function refreshMap() {
+            if (!map || !currentMetadata || !currentMetadata.bounds) {
+                showAlert('info', 'No map data available to refresh');
+                return;
+            }
+            
+            // Clear existing map
+            map.remove();
+            
+            // Reinitialize map with same bounds
+            const bounds = currentMetadata.bounds;
+            const leafletBounds = [
+                [bounds[1], bounds[0]],
+                [bounds[3], bounds[2]]
+            ];
+            
+            map = L.map('preview-map').fitBounds(leafletBounds);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+            
+            // Re-add the rectangle layer
+            if (currentLayer) {
+                currentLayer = L.rectangle(leafletBounds, {
+                    color: '#ff7800',
+                    weight: 1,
+                    fillOpacity: 0.2
+                }).addTo(map);
+            }
+            
+            showAlert('success', 'Map refreshed successfully');
+        }
+
+        // Update visualizations from analysis result
+        function updateVisualizations(result) {
+            const visualizations = extractVisualizations(result);
+            if (visualizations.length > 0) {
+                // Clear previous map if exists
+                if (map) {
+                    map.remove();
+                    map = null;
+                }
+                
+                // Initialize new map container
+                const mapContainer = document.getElementById('preview-map');
+                mapContainer.innerHTML = '<div class="map-controls"><button class="btn btn-sm btn-primary" onclick="refreshMap()"><i class="fas fa-sync-alt"></i> Refresh Map</button></div>';
+                
+                // For now we just show the first visualization
+                // In a real app you would handle different visualization types
+                const img = document.createElement('img');
+                img.src = visualizations[0].src;
+                img.alt = visualizations[0].alt;
+                img.className = 'img-fluid';
+                mapContainer.appendChild(img);
+            }
+        }
+
+        // Format AI analysis results
+        function formatAnalysisResult(data) {
+            let resultHtml = `
+                <div class="analysis-header">
+                    <h4><i class="fas fa-chart-bar me-2"></i>Analysis Results</h4>
+                    <div class="question-section bg-light p-3 mb-3 rounded">
+                        <strong>Question:</strong> 
+                        <p class="mb-0">"${data.query || 'No question provided'}"</p>
+                    </div>
+                </div>
+            `;
+            
+            // Extract and display visualizations first
+            const visualizations = extractVisualizations(data.result);
+            if (visualizations.length > 0) {
+                resultHtml += `<div class="visualizations mb-4">`;
+                visualizations.forEach((img, index) => {
+                    resultHtml += `
+                        <div class="visualization">
+                            <h5><i class="fas fa-image me-2"></i>${img.alt || 'Visualization ' + (index + 1)}</h5>
+                            <img src="${img.src}" alt="${img.alt}" class="img-fluid">
+                        </div>
+                    `;
+                });
+                resultHtml += `</div>`;
+            }
+            
+            // Format the text content
+            const textContent = removeVisualizations(data.result);
+            resultHtml += `
+                <div class="analysis-text">
+                    ${formatAnalysisText(textContent)}
+                </div>
+                <div class="mt-4 suggested-actions">
+                    <h5><i class="fas fa-lightbulb me-2"></i>Suggested Next Steps</h5>
+                    <div class="list-group">
+                        <a href="#" class="list-group-item list-group-item-action">
+                            <i class="fas fa-map-marked-alt me-2"></i>
+                            Create a thematic map with different attributes
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action">
+                            <i class="fas fa-chart-line me-2"></i>
+                            Analyze relationships between variables
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action">
+                            <i class="fas fa-search-location me-2"></i>
+                            Investigate spatial patterns and clusters
+                        </a>
+                    </div>
+                </div>
+            `;
+            
+            return resultHtml;
+        }
+
+        // Helper to extract visualizations from markdown
+        function extractVisualizations(text) {
+            if (!text) return [];
+            const imgRegex = /!\[(.*?)\]\((.*?)\)/g;
+            const images = [];
+            let match;
+            while ((match = imgRegex.exec(text)) !== null) {
+                images.push({
+                    alt: match[1],
+                    src: match[2]
+                });
+            }
+            return images;
+        }
+
+        // Helper to remove visualization markdown from text
+        function removeVisualizations(text) {
+            if (!text) return '';
+            return text.replace(/!\[.*?\]\(.*?\)/g, '');
+        }
+
+        // Enhanced text formatting
+        function formatAnalysisText(text) {
+            if (!text) return '<p>No analysis results available</p>';
+            
+            // Convert markdown-like formatting to HTML
+            let html = text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')              // Italic
+                .replace(/\n\n+/g, '</p><p>')                      // Paragraphs
+                .replace(/\n/g, '<br>')                            // Line breaks
+                .replace(/^- (.*?)(<br>|$)/gm, '<li>$1</li>')      // Lists
+                .replace(/`(.*?)`/g, '<code>$1</code>')            // Code
+                .replace(/#{1,6} (.*?)(<br>|$)/g, '<h5>$1</h5>');  // Headings
+            
+            // Add special formatting for statistics and numbers
+            html = html.replace(/(\d+\.\d+|\d+)/g, '<span class="stat-value">$1</span>');
+            
+            // Wrap in paragraphs if needed
+            if (!html.startsWith('<p>')) {
+                html = `<p>${html}</p>`;
+            }
+            
+            // Add data quality badges
+            html = html.replace(/(Data Quality:|Quality Issues:)/g, '$1 <span class="badge bg-warning data-quality-badge">Check</span>');
+            
+            return html;
+        }
+
+        // Show alert message
+        function showAlert(type, message) {
+            uploadMessage.className = `alert alert-${type} alert-dismissible fade show`;
+            uploadMessage.innerHTML = `
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'danger' ? 'fa-exclamation-circle' : 'fa-info-circle'} me-2"></i>
+                ${message}
+            `;
+        }
+    </script>
+</body>
+</html>
