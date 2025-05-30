@@ -59,10 +59,10 @@ llm = DeepSeekLLM(api_key=os.getenv("DEEPSEEK_API_KEY"))
 
 # Streamlit App
 st.set_page_config(page_title="GIS Data Analysis", layout="wide")
-st.title("GIS Data Analysis Tool")
+st.title("Advanced GIS Data Analyser")
 
 # File Upload Section
-st.header("Upload GIS Data")
+st.header("Upload GIS Data-Note: for shapefiles, select .shp.shx and .dbf together")
 uploaded_files = st.file_uploader("Upload GIS files", 
                                  type=['shp', 'dbf', 'shx', 'prj', 'geojson', 'kml', 'json'],
                                  accept_multiple_files=True)
