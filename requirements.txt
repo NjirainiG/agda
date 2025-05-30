@@ -1,1 +1,8 @@
+streamlit
+geopandas
+matplotlib
+scipy
+scikit-learn
+langchain-core
+requests
 python-dotenv
